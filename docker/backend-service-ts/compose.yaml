@@ -1,0 +1,56 @@
+services:
+  backend-service-ts:
+    build:
+      context: ../../backend-ts
+      dockerfile: docker/Dockerfile
+    container_name: backend-service-ts
+    depends_on:
+      pqs-app-provider:
+        condition: service_started
+      splice-onboarding:
+        condition: service_healthy
+    environment:
+      NODE_ENV: ${NODE_ENV:-production}
+      BACKEND_PORT: ${BACKEND_PORT:-8080}
+
+      # Canton/Ledger
+      LEDGER_HOST: ${LEDGER_HOST:-canton}
+      LEDGER_PORT: ${LEDGER_PORT:-3901}
+
+      # Database
+      POSTGRES_HOST: ${POSTGRES_HOST:-postgres}
+      POSTGRES_PORT: ${POSTGRES_PORT:-5432}
+      POSTGRES_DATABASE: ${POSTGRES_DATABASE:-pqs-app-provider}
+      POSTGRES_USERNAME: ${POSTGRES_USERNAME:-cnadmin}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-supersafe}
+
+      # Auth
+      AUTH_MODE: ${AUTH_MODE:-oauth2}
+      AUTH_APP_PROVIDER_BACKEND_USER_NAME: ${AUTH_APP_PROVIDER_BACKEND_USER_NAME:-app-provider-backend}
+
+      # Validator
+      VALIDATOR_URI: ${VALIDATOR_URI:-http://validator:5003}
+
+      # Logging
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+    env_file:
+      - ./env/${AUTH_MODE}.env
+    volumes:
+      - onboarding:/onboarding
+    ports:
+      - "8080:8080"
+      - "9229:9229"  # Debug port for Node.js
+    networks:
+      - default
+    mem_limit: 1g
+    labels:
+      description: "TypeScript backend service for Canton quickstart"
+
+volumes:
+  onboarding:
+    external: true
+
+networks:
+  default:
+    external: true
+    name: ${COMPOSE_PROJECT_NAME:-quickstart}_default
