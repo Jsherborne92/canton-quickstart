@@ -1,0 +1,212 @@
+/* DEX View Styles */
+
+.dex-view {
+  min-height: 100vh;
+  background: #0a0e27;
+  color: #ffffff;
+  padding: 2rem;
+}
+
+.dex-header {
+  text-align: center;
+  margin-bottom: 3rem;
+  padding-bottom: 2rem;
+  border-bottom: 2px solid #2d3148;
+}
+
+.dex-header h1 {
+  margin: 0 0 0.5rem 0;
+  font-size: 2.5rem;
+  font-weight: 700;
+  background: linear-gradient(135deg, #4da6ff 0%, #26a69a 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.dex-header .subtitle {
+  margin: 0;
+  color: #8b92b8;
+  font-size: 1rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.dex-loading,
+.dex-error {
+  text-align: center;
+  padding: 3rem;
+  font-size: 1.125rem;
+}
+
+.dex-loading {
+  color: #8b92b8;
+}
+
+.dex-error {
+  color: #ef5350;
+  background: rgba(239, 83, 80, 0.1);
+  border: 1px solid #ef5350;
+  border-radius: 12px;
+  margin-bottom: 2rem;
+}
+
+.wallet-section {
+  margin-bottom: 3rem;
+}
+
+.wallet-section h2 {
+  margin: 0 0 1.5rem 0;
+  color: #ffffff;
+  font-size: 1.5rem;
+  font-weight: 600;
+}
+
+.empty-wallet {
+  text-align: center;
+  padding: 3rem;
+  background: #1a1f3a;
+  border-radius: 12px;
+  border: 2px dashed #2d3148;
+}
+
+.empty-wallet p {
+  margin: 0.5rem 0;
+  color: #8b92b8;
+}
+
+.empty-wallet .help-text {
+  font-size: 0.875rem;
+  font-style: italic;
+}
+
+.tokens-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 1rem;
+}
+
+.token-card {
+  background: linear-gradient(135deg, #1a1f3a 0%, #151932 100%);
+  border: 1px solid #2d3148;
+  border-radius: 12px;
+  padding: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  transition: all 0.2s;
+}
+
+.token-card:hover {
+  border-color: #4da6ff;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(77, 166, 255, 0.2);
+}
+
+.token-symbol {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: #4da6ff;
+  letter-spacing: 0.05em;
+}
+
+.token-amount {
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: #ffffff;
+  font-variant-numeric: tabular-nums;
+}
+
+.token-issuer {
+  font-size: 0.75rem;
+  color: #8b92b8;
+  margin-top: 0.5rem;
+  font-family: monospace;
+}
+
+.trading-section {
+  margin-bottom: 3rem;
+}
+
+.trading-pair-selector {
+  margin-bottom: 2rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+.trading-pair-selector h2 {
+  margin: 0;
+  color: #ffffff;
+  font-size: 1.5rem;
+  font-weight: 600;
+}
+
+.pair-selector {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: #1a1f3a;
+  padding: 0.5rem 1rem;
+  border-radius: 8px;
+  border: 1px solid #2d3148;
+}
+
+.pair-selector select {
+  background: transparent;
+  border: none;
+  color: #ffffff;
+  font-size: 1.125rem;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 0.25rem 0.5rem;
+}
+
+.pair-selector select:focus {
+  outline: none;
+}
+
+.pair-selector .separator {
+  color: #8b92b8;
+  font-size: 1.125rem;
+  font-weight: 600;
+}
+
+.trading-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 2rem;
+}
+
+@media (min-width: 1024px) {
+  .trading-grid {
+    grid-template-columns: 2fr 1fr;
+  }
+}
+
+.order-book-container,
+.order-form-container {
+  min-width: 0; /* Allows grid items to shrink below their min-content size */
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .dex-view {
+    padding: 1rem;
+  }
+
+  .dex-header h1 {
+    font-size: 2rem;
+  }
+
+  .tokens-grid {
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  }
+
+  .trading-pair-selector {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}

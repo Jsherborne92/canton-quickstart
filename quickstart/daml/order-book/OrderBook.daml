@@ -1,0 +1,193 @@
+module OrderBook where
+
+import DA.Assert
+
+-- Basic fungible token
+template Token
+  with
+    issuer : Party
+    owner : Party
+    symbol : Text
+    amount : Decimal
+  where
+    signatory issuer
+    observer owner
+
+    ensure amount > 0.0
+
+    choice Transfer : ContractId Token
+      with
+        newOwner : Party
+      controller owner
+      do
+        create this with owner = newOwner
+
+    choice Split : (ContractId Token, ContractId Token)
+      with
+        splitAmount : Decimal
+      controller owner
+      do
+        assertMsg "Split amount must be positive and less than total"
+          (splitAmount > 0.0 && splitAmount < amount)
+        token1 <- create this with amount = splitAmount
+        token2 <- create this with amount = amount - splitAmount
+        return (token1, token2)
+
+    choice Merge : ContractId Token
+      with
+        otherTokenCid : ContractId Token
+      controller owner
+      do
+        otherToken <- fetch otherTokenCid
+        assertMsg "Can only merge same token" (otherToken.symbol == symbol)
+        assertMsg "Must be same owner" (otherToken.owner == owner)
+        archive otherTokenCid
+        create this with amount = amount + otherToken.amount
+
+-- Buy order
+template BuyOrder
+  with
+    exchange : Party
+    trader : Party
+    baseSymbol : Text
+    quoteSymbol : Text
+    price : Decimal
+    quantity : Decimal
+    collateralCid : ContractId Token
+  where
+    signatory exchange, trader
+
+    ensure price > 0.0 && quantity > 0.0
+
+    choice CancelBuyOrder : ContractId Token
+      controller trader
+      do
+        exercise collateralCid Transfer with newOwner = trader
+
+    choice MatchWithSellOrder : (ContractId Token, ContractId Token)
+      with
+        sellOrderCid : ContractId SellOrder
+      controller exchange
+      do
+        sellOrder <- fetch sellOrderCid
+
+        assertMsg "Base symbols must match" (baseSymbol == sellOrder.baseSymbol)
+        assertMsg "Quote symbols must match" (quoteSymbol == sellOrder.quoteSymbol)
+        assertMsg "Buy price must be >= sell price" (price >= sellOrder.price)
+
+        let tradePrice = sellOrder.price
+        let tradeQuantity = min quantity sellOrder.quantity
+        let quoteAmount = tradePrice * tradeQuantity
+
+        buyerCollateral <- fetch collateralCid
+        sellerCollateral <- fetch sellOrder.collateralCid
+
+        assertMsg "Insufficient buyer collateral" (buyerCollateral.amount >= quoteAmount)
+        assertMsg "Insufficient seller collateral" (sellerCollateral.amount >= tradeQuantity)
+
+        (buyerPayment, buyerRemainder) <- exercise collateralCid Split with splitAmount = quoteAmount
+        (sellerPayment, sellerRemainder) <- exercise sellOrder.collateralCid Split with splitAmount = tradeQuantity
+
+        buyerReceives <- exercise sellerPayment Transfer with newOwner = trader
+        sellerReceives <- exercise buyerPayment Transfer with newOwner = sellOrder.trader
+
+        when (tradeQuantity < quantity) $ do
+          create this with
+            quantity = quantity - tradeQuantity
+            collateralCid = buyerRemainder
+          return ()
+
+        when (buyerCollateral.amount > quoteAmount) $ do
+          exercise buyerRemainder Transfer with newOwner = trader
+          return ()
+
+        when (tradeQuantity < sellOrder.quantity) $ do
+          create sellOrder with
+            quantity = sellOrder.quantity - tradeQuantity
+            collateralCid = sellerRemainder
+          return ()
+
+        when (tradeQuantity >= sellOrder.quantity) $ do
+          archive sellOrderCid
+          when (sellerCollateral.amount > tradeQuantity) $ do
+            exercise sellerRemainder Transfer with newOwner = sellOrder.trader
+            return ()
+
+        return (buyerReceives, sellerReceives)
+
+-- Sell order
+template SellOrder
+  with
+    exchange : Party
+    trader : Party
+    baseSymbol : Text
+    quoteSymbol : Text
+    price : Decimal
+    quantity : Decimal
+    collateralCid : ContractId Token
+  where
+    signatory exchange, trader
+
+    ensure price > 0.0 && quantity > 0.0
+
+    choice CancelSellOrder : ContractId Token
+      controller trader
+      do
+        exercise collateralCid Transfer with newOwner = trader
+
+-- Exchange operator
+template Exchange
+  with
+    operator : Party
+    name : Text
+  where
+    signatory operator
+
+    choice CreateBuyOrder : ContractId BuyOrder
+      with
+        trader : Party
+        baseSymbol : Text
+        quoteSymbol : Text
+        price : Decimal
+        quantity : Decimal
+        collateralCid : ContractId Token
+      controller trader
+      do
+        collateral <- fetch collateralCid
+        let requiredCollateral = price * quantity
+        assertMsg "Insufficient collateral" (collateral.amount >= requiredCollateral)
+        assertMsg "Wrong collateral currency" (collateral.symbol == quoteSymbol)
+        assertMsg "Must own collateral" (collateral.owner == trader)
+
+        create BuyOrder with
+          exchange = operator
+          trader
+          baseSymbol
+          quoteSymbol
+          price
+          quantity
+          collateralCid
+
+    choice CreateSellOrder : ContractId SellOrder
+      with
+        trader : Party
+        baseSymbol : Text
+        quoteSymbol : Text
+        price : Decimal
+        quantity : Decimal
+        collateralCid : ContractId Token
+      controller trader
+      do
+        collateral <- fetch collateralCid
+        assertMsg "Insufficient collateral" (collateral.amount >= quantity)
+        assertMsg "Wrong collateral currency" (collateral.symbol == baseSymbol)
+        assertMsg "Must own collateral" (collateral.owner == trader)
+
+        create SellOrder with
+          exchange = operator
+          trader
+          baseSymbol
+          quoteSymbol
+          price
+          quantity
+          collateralCid

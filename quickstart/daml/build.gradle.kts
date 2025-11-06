@@ -38,8 +38,14 @@ tasks.register<com.digitalasset.transcode.codegen.java.gradle.JavaCodegenTask>("
     dependsOn("compileDaml")
 }
 
+tasks.register<com.digitalasset.transcode.codegen.java.gradle.JavaCodegenTask>("codeGenOrderBook") {
+    dar.from("$projectDir/order-book/.daml/dist/order-book-0.0.1.dar")
+    destination = file("$rootDir/backend/build/generated-daml-bindings")
+    dependsOn("compileDaml")
+}
+
 tasks.named("build") {
-    dependsOn("codeGen")
+    dependsOn("codeGen", "codeGenOrderBook")
 }
 
 // Helper function to compute SDK variables

@@ -16,6 +16,7 @@ import LicensesView from './views/LicensesView';
 import { LicenseProvider } from './stores/licenseStore';
 import {AppInstallProvider} from "./stores/appInstallStore.tsx";
 import {TenantRegistrationProvider} from "./stores/tenantRegistrationStore.tsx";
+import DexViewWrapper from './views/DexViewWrapper';
 
 const App: React.FC = () => {
     const AppProviders = composeProviders(
@@ -36,6 +37,7 @@ const App: React.FC = () => {
                     <Route path="/login" element={<LoginView />} />
                     <Route path="/app-installs" element={<AppInstallsView />} />
                     <Route path="/licenses" element={<LicensesView />} />
+                    <Route path="/dex" element={<DexViewWrapper />} />
                 </Routes>
             </main>
             <ToastNotification />

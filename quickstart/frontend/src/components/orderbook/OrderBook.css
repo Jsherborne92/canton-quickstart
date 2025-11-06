@@ -1,0 +1,155 @@
+/* Order Book Component Styles */
+
+.order-book {
+  background: #1a1f3a;
+  border-radius: 12px;
+  padding: 1.5rem;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.order-book-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.5rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid #2d3148;
+}
+
+.order-book-header h2 {
+  margin: 0;
+  color: #ffffff;
+  font-size: 1.5rem;
+  font-weight: 600;
+}
+
+.spread-badge {
+  background: #2d3148;
+  color: #8b92b8;
+  padding: 0.5rem 1rem;
+  border-radius: 6px;
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+.order-book-loading,
+.order-book-error {
+  text-align: center;
+  padding: 3rem;
+  color: #8b92b8;
+  background: #1a1f3a;
+  border-radius: 12px;
+}
+
+.order-book-error {
+  color: #ef5350;
+}
+
+.orders-container {
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+}
+
+.sell-orders-section,
+.buy-orders-section {
+  flex: 1;
+}
+
+.section-title {
+  margin: 0 0 1rem 0;
+  font-size: 1rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.sell-orders-section .section-title {
+  color: #ef5350;
+}
+
+.buy-orders-section .section-title {
+  color: #26a69a;
+}
+
+.orders-table {
+  display: flex;
+  flex-direction: column;
+}
+
+.table-header {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1rem;
+  padding: 0.75rem 1rem;
+  background: #151932;
+  border-radius: 6px 6px 0 0;
+  color: #8b92b8;
+  font-size: 0.875rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.order-row {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1rem;
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid #151932;
+  transition: background-color 0.2s;
+  font-variant-numeric: tabular-nums;
+}
+
+.order-row:hover {
+  background: #151932;
+}
+
+.order-row.buy {
+  color: #26a69a;
+}
+
+.order-row.buy .price {
+  font-weight: 600;
+}
+
+.order-row.sell {
+  color: #ef5350;
+}
+
+.order-row.sell .price {
+  font-weight: 600;
+}
+
+.order-row span {
+  text-align: left;
+}
+
+.order-row .price {
+  font-size: 1rem;
+}
+
+.order-row .quantity,
+.order-row .total {
+  color: #8b92b8;
+  font-size: 0.9rem;
+}
+
+.empty-orders {
+  padding: 2rem;
+  text-align: center;
+  color: #8b92b8;
+  font-style: italic;
+}
+
+/* Responsive design */
+@media (min-width: 768px) {
+  .orders-container {
+    flex-direction: row;
+  }
+
+  .sell-orders-section,
+  .buy-orders-section {
+    flex: 1;
+  }
+}
