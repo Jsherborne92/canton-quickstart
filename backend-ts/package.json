@@ -1,0 +1,54 @@
+{
+  "name": "canton-quickstart-backend-ts",
+  "version": "1.0.0",
+  "description": "TypeScript backend service for Canton quickstart",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "lint": "eslint src --ext .ts",
+    "lint:fix": "eslint src --ext .ts --fix",
+    "format": "prettier --write \"src/**/*.ts\"",
+    "format:check": "prettier --check \"src/**/*.ts\"",
+    "typecheck": "tsc --noEmit",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "drizzle-kit migrate",
+    "db:studio": "drizzle-kit studio",
+    "generate:daml": "./scripts/generate-daml-types.sh"
+  },
+  "keywords": ["canton", "daml", "ledger", "typescript"],
+  "author": "",
+  "license": "Apache-2.0",
+  "dependencies": {
+    "@daml/ledger": "^2.9.0",
+    "@daml/types": "^2.9.0",
+    "@fastify/cors": "^9.0.1",
+    "@fastify/jwt": "^8.0.0",
+    "@fastify/oauth2": "^7.9.0",
+    "drizzle-orm": "^0.36.4",
+    "dotenv": "^16.4.5",
+    "fastify": "^5.1.0",
+    "postgres": "^3.4.4",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.1",
+    "@typescript-eslint/eslint-plugin": "^8.18.1",
+    "@typescript-eslint/parser": "^8.18.1",
+    "@vitest/coverage-v8": "^2.1.8",
+    "@vitest/ui": "^2.1.8",
+    "drizzle-kit": "^0.30.1",
+    "eslint": "^9.16.0",
+    "prettier": "^3.4.2",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.8"
+  },
+  "engines": {
+    "node": ">=22.0.0"
+  }
+}
