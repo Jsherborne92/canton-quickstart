@@ -6,3 +6,4 @@ packages:
 - ./licensing
 - ./licensing-tests
 - ./order-book
+- ./cip56-token

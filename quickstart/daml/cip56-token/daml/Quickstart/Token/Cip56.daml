@@ -1,0 +1,337 @@
+module Quickstart.Token.Cip56 where
+
+import Prelude
+import DA.Assert (assertMsg)
+import DA.Optional (Optional(..))
+import DA.Traversable (forA, forA_)
+
+import Splice.Api.Token.MetadataV1
+import Splice.Api.Token.HoldingV1
+import Splice.Api.Token.TransferInstructionV1
+import Splice.Api.Token.AllocationV1
+import Splice.Api.Token.AllocationInstructionV1
+
+-- | Simple CIP-56 compliant registry for a fungible token used in the quickstart.
+data RegistryConfig = RegistryConfig with
+    admin : Party
+    symbol : Text
+    name : Text
+    description : Text
+  deriving (Eq, Show)
+
+-- | Registry contract for managing the CIP-56 token.
+template Registry
+  with
+    config : RegistryConfig
+    registryMeta : Metadata
+  where
+    signatory config.admin
+
+    ensure config.symbol /= ""
+    ensure config.name /= ""
+
+    nonconsuming choice CreateTransferFactory : ContractId TransferFactory
+      with
+        meta : Metadata
+      controller config.admin
+      do
+        factoryCid <- create TransferFactoryContract with
+          admin = config.admin
+          instrumentId = instrumentId
+          factoryMeta = meta
+        pure (toInterfaceContractId factoryCid)
+
+    nonconsuming choice CreateAllocationFactory : ContractId AllocationFactory
+      with
+        meta : Metadata
+      controller config.admin
+      do
+        factoryCid <- create AllocationFactoryContract with
+          admin = config.admin
+          instrumentId = instrumentId
+          factoryMeta = meta
+        pure (toInterfaceContractId factoryCid)
+
+    nonconsuming choice Mint : ContractId Holding
+      with
+        recipient : Party
+        amount : Decimal
+        meta : Metadata
+      controller config.admin
+      do
+        assertMsg "Mint amount must be positive" (amount > 0.0)
+        holdingCid <- create HoldingContract with
+          admin = config.admin
+          owner = recipient
+          amount
+          instrumentId
+          optLock = None
+          meta = mergeMetadata registryMeta meta
+        pure (toInterfaceContractId holdingCid)
+
+    nonconsuming choice Burn : ()
+      with
+        holdingCid : ContractId Holding
+      controller config.admin
+      do
+        holdingCidConcrete <- requireHoldingCid "Burn" holdingCid
+        archive holdingCidConcrete
+
+    where
+      instrumentId : InstrumentId
+      instrumentId = InstrumentId with
+        admin = config.admin
+        id = config.symbol
+
+-- | Merge two metadata maps. Caller metadata overwrites defaults on key clashes.
+mergeMetadata : Metadata -> Metadata -> Metadata
+mergeMetadata (Metadata defaultValues) (Metadata callerValues) =
+  Metadata with values = defaultValues <> callerValues
+
+-- | CIP-56 holding with optional lock support.
+template HoldingContract
+  with
+    admin : Party
+    owner : Party
+    amount : Decimal
+    instrumentId : InstrumentId
+    optLock : Optional Lock
+    meta : Metadata
+  where
+    signatory admin, owner
+    ensure amount > 0.0
+
+    interface instance Holding for HoldingContract where
+      view = HoldingView with
+        owner
+        instrumentId
+        amount
+        lock = optLock
+        meta
+
+-- | Factory used for CIP-56 transfer instructions.
+template TransferFactoryContract
+  with
+    admin : Party
+    instrumentId : InstrumentId
+    factoryMeta : Metadata
+  where
+    signatory admin
+
+    interface instance TransferFactory for TransferFactoryContract where
+      view = TransferFactoryView with
+        admin
+        meta = factoryMeta
+
+      transferFactory_transferImpl self TransferFactory_Transfer{..} =
+        handleTransfer instrumentId expectedAdmin transfer extraArgs
+
+      transferFactory_publicFetchImpl _ TransferFactory_PublicFetch{..} = do
+        assertMsg "unexpected admin" (expectedAdmin == admin)
+        pure $ TransferFactoryView with
+          admin
+          meta = factoryMeta
+
+-- | Factory used for CIP-56 allocation instructions.
+template AllocationFactoryContract
+  with
+    admin : Party
+    instrumentId : InstrumentId
+    factoryMeta : Metadata
+  where
+    signatory admin
+
+    interface instance AllocationFactory for AllocationFactoryContract where
+      view = AllocationFactoryView with
+        admin
+        meta = factoryMeta
+
+      allocationFactory_allocateImpl self AllocationFactory_Allocate{..} =
+        handleAllocation admin instrumentId expectedAdmin allocation requestedAt inputHoldingCids extraArgs
+
+      allocationFactory_publicFetchImpl _ AllocationFactory_PublicFetch{..} = do
+        assertMsg "unexpected admin" (expectedAdmin == admin)
+        pure $ AllocationFactoryView with
+          admin
+          meta = factoryMeta
+
+-- | Allocation contract used to coordinate DvP settlements.
+template AllocationContract
+  with
+    admin : Party
+    allocation : AllocationSpecification
+    lockedHoldingCid : ContractId HoldingContract
+    meta : Metadata
+  where
+    signatory admin, allocation.transferLeg.sender, allocation.settlement.executor
+    observer allocation.transferLeg.receiver
+
+    interface instance Allocation for AllocationContract where
+      view = AllocationView with
+        allocation
+        holdingCids = [toInterfaceContractId lockedHoldingCid]
+        meta
+
+      allocation_executeTransferImpl self Allocation_ExecuteTransfer{..} = do
+        lockedHolding <- fetch lockedHoldingCid
+        assertMsg "locked holding owner mismatch" (lockedHolding.owner == allocation.transferLeg.sender)
+        assertMsg "locked amount insufficient" (lockedHolding.amount >= allocation.transferLeg.amount)
+        archive lockedHoldingCid
+        receiverCid <- create HoldingContract with
+          admin
+          owner = allocation.transferLeg.receiver
+          amount = allocation.transferLeg.amount
+          instrumentId = lockedHolding.instrumentId
+          optLock = None
+          meta = mergeMetadata lockedHolding.meta extraArgs.meta
+        archive self
+        pure Allocation_ExecuteTransferResult with
+          senderHoldingCids = []
+          receiverHoldingCids = [toInterfaceContractId receiverCid]
+          meta = mergeMetadata meta extraArgs.meta
+
+      allocation_withdrawImpl self Allocation_Withdraw{..} = do
+        lockedHolding <- fetch lockedHoldingCid
+        archive lockedHoldingCid
+        newHoldingCid <- create lockedHolding with optLock = None
+        archive self
+        pure Allocation_WithdrawResult with
+          senderHoldingCids = [toInterfaceContractId newHoldingCid]
+          meta = mergeMetadata meta extraArgs.meta
+
+      allocation_cancelImpl self Allocation_Cancel{..} = do
+        lockedHolding <- fetch lockedHoldingCid
+        archive lockedHoldingCid
+        newHoldingCid <- create lockedHolding with optLock = None
+        archive self
+        pure Allocation_CancelResult with
+          senderHoldingCids = [toInterfaceContractId newHoldingCid]
+          meta = mergeMetadata meta extraArgs.meta
+
+-- | Resolve a list of holding cids into concrete holding contracts.
+requireHoldings
+  : Text
+  -> InstrumentId
+  -> Party
+  -> [ContractId Holding]
+  -> Update [(ContractId HoldingContract, HoldingContract)]
+requireHoldings context instrumentId expectedOwner cids =
+  forA cids $ \cid -> do
+    holdingCid <- requireHoldingCid context cid
+    holding <- fetch holdingCid
+    assertMsg "holding owner mismatch" (holding.owner == expectedOwner)
+    assertMsg "wrong instrument" (holding.instrumentId == instrumentId)
+    pure (holdingCid, holding)
+
+requireHoldingCid : Text -> ContractId Holding -> Update (ContractId HoldingContract)
+requireHoldingCid _context holdingCid =
+  pure (fromInterfaceContractId @HoldingContract holdingCid)
+
+-- | Execute a simple direct transfer compliant with CIP-56.
+handleTransfer
+  : InstrumentId
+  -> Party
+  -> Transfer
+  -> ExtraArgs
+  -> Update TransferInstructionResult
+handleTransfer instrumentId expectedAdmin transfer extraArgs = do
+  assertMsg "unexpected admin" (expectedAdmin == instrumentId.admin)
+  now <- getTime
+  assertMsg "transfer requested in future" (transfer.requestedAt <= now)
+  assertMsg "transfer expired" (transfer.executeBefore > now)
+  assertMsg "transfer amount must be positive" (transfer.amount > 0.0)
+  inputs <- requireHoldings "transfer" instrumentId transfer.sender transfer.inputHoldingCids
+  let total = sum (map (._2.amount) inputs)
+  assertMsg "insufficient balance" (total >= transfer.amount)
+  forA_ inputs $ \(cid, _) -> archive cid
+  receiverCid <- create HoldingContract with
+    admin = instrumentId.admin
+    owner = transfer.receiver
+    amount = transfer.amount
+    instrumentId
+    optLock = None
+    meta = mergeMetadata emptyMetadata transfer.meta
+  let changeAmount = total - transfer.amount
+  changeCidOpt <-
+    if changeAmount > 0.0
+      then do
+        changeCid <- create HoldingContract with
+          admin = instrumentId.admin
+          owner = transfer.sender
+          amount = changeAmount
+          instrumentId
+          optLock = None
+          meta = mergeMetadata emptyMetadata transfer.meta
+        pure (Some changeCid)
+      else
+        pure None
+  let senderChangeCids = case changeCidOpt of
+        Some cid -> [toInterfaceContractId cid]
+        None -> []
+  pure TransferInstructionResult with
+    senderChangeCids
+    output = TransferInstructionResult_Completed with
+      receiverHoldingCids = [toInterfaceContractId receiverCid]
+    meta = mergeMetadata extraArgs.meta transfer.meta
+
+-- | Create a locked allocation and return the allocation contract id.
+handleAllocation
+  : Party
+  -> InstrumentId
+  -> Party
+  -> AllocationSpecification
+  -> Time
+  -> [ContractId Holding]
+  -> ExtraArgs
+  -> Update AllocationInstructionResult
+handleAllocation admin instrumentId expectedAdmin allocation requestedAt inputHoldingCids extraArgs = do
+  assertMsg "unexpected admin" (expectedAdmin == admin)
+  assertMsg "unexpected instrument" (allocation.transferLeg.instrumentId == instrumentId)
+  now <- getTime
+  assertMsg "allocation requested in future" (requestedAt <= now)
+  assertMsg "allocation window closed" (allocation.settlement.allocateBefore > now)
+  assertMsg "allocation amount must be positive" (allocation.transferLeg.amount > 0.0)
+  inputs <- requireHoldings "allocation" instrumentId allocation.transferLeg.sender inputHoldingCids
+  let total = sum (map (._2.amount) inputs)
+  assertMsg "insufficient allocation balance" (total >= allocation.transferLeg.amount)
+  forA_ inputs $ \(cid, _) -> archive cid
+  let lock = Lock with
+        holders = [admin, allocation.settlement.executor]
+        expiresAt = Some allocation.settlement.settleBefore
+        expiresAfter = None
+        context = Some ("Settlement " <> allocation.settlement.settlementRef.id)
+  lockedHoldingCid <- create HoldingContract with
+    admin
+    owner = allocation.transferLeg.sender
+    amount = allocation.transferLeg.amount
+    instrumentId
+    optLock = Some lock
+    meta = mergeMetadata emptyMetadata allocation.transferLeg.meta
+  let changeAmount = total - allocation.transferLeg.amount
+  changeCidOpt <-
+    if changeAmount > 0.0
+      then do
+        changeCid <- create HoldingContract with
+          admin
+          owner = allocation.transferLeg.sender
+          amount = changeAmount
+          instrumentId
+          optLock = None
+          meta = mergeMetadata emptyMetadata allocation.transferLeg.meta
+        pure (Some changeCid)
+      else
+        pure None
+  let senderChangeCids = case changeCidOpt of
+        Some cid -> [toInterfaceContractId cid]
+        None -> []
+  allocationCid <- create AllocationContract with
+    admin
+    allocation
+    lockedHoldingCid
+    meta = mergeMetadata extraArgs.meta allocation.transferLeg.meta
+  pure AllocationInstructionResult with
+    senderChangeCids
+    output = AllocationInstructionResult_Completed with
+      allocationCid = toInterfaceContractId allocationCid
+    meta = mergeMetadata extraArgs.meta allocation.transferLeg.meta
+
